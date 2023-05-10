@@ -15,8 +15,9 @@ With this setup, the data processing pipeline is ready, and you can test it by u
 Lambda function will be triggered automatically upon file upload and process the data accordingly.
 
 - Given example data turned into .csv files for test purposes
+
+# Used erraform Resources #: 
 ```
-#Used erraform Resources#: 
 - aws
 - terraform
 - "aws_s3_bucket" "data_bucket"
