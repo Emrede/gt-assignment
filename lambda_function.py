@@ -6,6 +6,7 @@ from decimal import Decimal
 
 s3 = boto3.client("s3")
 sqs = boto3.client("sqs")
+dynamodb = boto3.resource("dynamodb")
 
 def lambda_handler(event, context):
     bucket = event["Records"][0]["s3"]["bucket"]["name"]
@@ -15,7 +16,10 @@ def lambda_handler(event, context):
     messages = process_data(data)
 
     for message in messages:
-        send_message(message)
+        if message["type"] == "customer_message":
+            store_data(message)
+        else:
+            send_message(message)
 
 def load_s3_data(bucket, key):
     obj = s3.get_object(Bucket=bucket, Key=key)
@@ -40,21 +44,21 @@ def parse_csv_data(data):
         fields = line.split(";")
 
         if len(fields) == 5:
-            if fields[0].isdigit():
+            if fields[0].isdigit() and not fields[1].isdigit():
                 customers[int(fields[0])] = {
                     "first_name": fields[1],
                     "last_name": fields[2],
                     "customer_reference": fields[3],
                     "status": fields[4]
                 }
-            elif fields[1].isdigit():
+            elif fields[0].isdigit() and fields[1].isdigit():
                 orders[int(fields[0])] = {
                     "customer_reference": fields[1],
                     "order_status": fields[2],
                     "order_reference": fields[3],
                     "order_timestamp": int(fields[4])
                 }
-            else:
+            elif fields[0].isdigit() and fields[3].isdigit() and "," in fields[4]:
                 items[int(fields[0])] = {
                     "order_reference": fields[1],
                     "item_name": fields[2],
@@ -63,6 +67,7 @@ def parse_csv_data(data):
                 }
 
     return customers, orders, items
+
 
 def generate_customer_messages(customers, orders, items):
     customer_messages = []
@@ -75,7 +80,7 @@ def generate_customer_messages(customers, orders, items):
             "type": "customer_message",
             "customer_reference": customer["customer_reference"],
             "number_of_orders": len(customer_orders),
-            "total_amount_spent": float(total_amount_spent)
+            "total_amount_spent": Decimal(str(total_amount_spent))
         })
 
     return customer_messages
@@ -95,7 +100,8 @@ def generate_error_messages(orders, items):
     return error_messages
 
 def send_message(message):
-    sqs.send_message(QueueUrl="your_sqs_queue_url", MessageBody=json.dumps(message))
+    queue_url = os.environ["SQS_QUEUE_URL"]
+    sqs.send_message(QueueUrl=queue_url, MessageBody=json.dumps(message))
 
 def store_data(customer_message):
     table = dynamodb.Table("customer_data")

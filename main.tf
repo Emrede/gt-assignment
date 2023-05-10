@@ -3,7 +3,7 @@ terraform {
     bucket         = "terraform-tfstate-gt"
     key            = "terraform.tfstate"
     region         = "eu-central-1" # Replace with the AWS region where your bucket is located
-    # encrypt        = true
+    encrypt        = true
     # dynamodb_table = "terraform-lock" # Optional: if you want to enable state locking using DynamoDB
   }
 }
@@ -15,22 +15,6 @@ provider "aws" {
 resource "aws_s3_bucket" "bucket" {
   bucket = "gt-task-bucket-10-05-23"
 }
-
-# resource "aws_s3_bucket_policy" "bucket_policy" {
-#   bucket = aws_s3_bucket.bucket.id
-
-#   policy = jsonencode({
-#     "Version": "2012-10-17"
-#     "Statement": [
-#       {
-#         "Action": "s3:GetObject"
-#         "Effect": "Allow"
-#         "Resource": "*"
-#         "Principal": "*"
-#       }
-#     ]
-#   })
-# }
 
 resource "aws_sqs_queue" "queue" {
 name = "queue_name"
@@ -82,6 +66,13 @@ resource "aws_lambda_function" "data_processing" {
 
   filename         = "lambda_function.zip"
   source_code_hash = filebase64sha256("lambda_function.zip")
+
+  environment {
+    variables = {
+      SQS_QUEUE_URL = aws_sqs_queue.queue.id
+    }
+  }
+
 }
 
 resource "aws_iam_role_policy" "lambda_role_policy" {
@@ -93,36 +84,38 @@ resource "aws_iam_role_policy" "lambda_role_policy" {
     Statement = [
       {
         Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Effect   = "Allow"
+        Resource = [
+          aws_s3_bucket.bucket.arn,
+          "${aws_s3_bucket.bucket.arn}/*"
+        ]
+      },
+      {
+        Action = [
           "logs:CreateLogGroup",
           "logs:CreateLogStream",
-          "logs:PutLogEvents",
+          "logs:PutLogEvents"
         ]
         Effect   = "Allow"
         Resource = "arn:aws:logs:*:*:*"
       },
       {
         Action = [
-          "s3:GetObject",
+          "sqs:SendMessage"
         ]
-        Effect   = "Allow"
-        Resource = "${aws_s3_bucket.bucket.arn}/*"
+        Effect = "Allow"
+        Resource = aws_sqs_queue.queue.arn
       },
       {
         Action = [
-          "sqs:SendMessage",
-          "sqs:GetQueueUrl",
+          "dynamodb:PutItem"
         ]
-        Effect   = "Allow"
-        Resource = "aws_sqs_queue.queue.arn"
-      },
-      {
-        Action = [
-          "dynamodb:PutItem",
-        ]
-        Effect   = "Allow"
-        Resource = "aws_dynamodb_table.customer_data.arn"
+        Effect = "Allow"
+        Resource = aws_dynamodb_table.customer_data.arn
       }
-      
     ]
   })
 }
@@ -133,20 +126,4 @@ resource "aws_lambda_permission" "allow_bucket_invocation" {
   function_name = aws_lambda_function.data_processing.function_name
   principal     = "s3.amazonaws.com"
   source_arn    = aws_s3_bucket.bucket.arn
-}
-
-resource "aws_s3_bucket_policy" "bucket_policy" {
-  bucket = aws_s3_bucket.bucket.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action   = "s3:*"
-        Effect   = "Allow"
-        Resource = "*"
-        Principal = "*"
-      }
-    ]
-  })
 }
