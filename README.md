@@ -12,11 +12,9 @@ Before running Terraform, create a Lambda package with your Lambda function code
 
 Then, run `terraform init` and `terraform apply` to create the resources.
 
-With this setup, the data processing pipeline is ready, and you can test it by uploading CSV files to the S3 bucket. Run copy_csvs_to_bucket.sh to copy needed files to the bucket automatically. Please make sure AWS CLI is configured before running the script. 
-
-Lambda function will be triggered automatically upon file upload and process the data accordingly.
-
+- With this setup, the data processing pipeline is ready, and you can test it by uploading CSV files to the S3 bucket. 
 - Given example data turned into .csv files for test purposes
+- After running `terraform apply`, run `copy_csvs_to_bucket.sh` to copy needed files to the bucket automatically. Please make sure AWS CLI is configured before running the script. 
 
 # Used Resources: 
 ```
