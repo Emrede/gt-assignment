@@ -104,12 +104,12 @@ resource "aws_iam_role_policy" "lambda_role_policy" {
         ]
         Effect   = "Allow"
         Resource = "*"
-      },
-      {
-        Action = "lambda:InvokeFunction"
-        Effect = "Allow"
-        Resource = aws_lambda_function.data_processing.arn
       }
+      # {
+      #   Action = "lambda:InvokeFunction"
+      #   Effect = "Allow"
+      #   Resource = aws_lambda_function.data_processing.function_arn
+      # }
     ]
   })
 }
