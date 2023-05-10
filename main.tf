@@ -1,42 +1,53 @@
+terraform {
+  backend "s3" {
+    bucket         = "terraform-tfstate-gt"
+    key            = "terraform.tfstate"
+    region         = "eu-central-1" # Replace with the AWS region where your bucket is located
+    encrypt        = true
+    # dynamodb_table = "terraform-lock" # Optional: if you want to enable state locking using DynamoDB
+  }
+}
+
+
 provider "aws" {
   region = "eu-central-1"
 }
 
-resource "aws_s3_bucket" "data_bucket" {
-  bucket = "your-data-bucket"
+resource "aws_s3_bucket" "bucket" {
+  bucket = "gt-task-bucket-10-05-23"
 }
 
-resource "aws_dynamodb_table" "processed_data" {
-  name           = "ProcessedData"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "id"
-  read_capacity  = 1
-  write_capacity = 1
+resource "aws_s3_bucket_policy" "bucket_policy" {
+  bucket = aws_s3_bucket.bucket.id
 
-  attribute {
-    name = "id"
-    type = "S"
-  }
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "s3:GetObject"
+        Effect = "Allow"
+        Resource = "${aws_s3_bucket.bucket.arn}/*"
+        Principal = {
+          AWS = aws_iam_role.lambda_role.arn
+        }
+      }
+    ]
+  })
 }
 
-resource "aws_sqs_queue" "data_queue" {
-  name = "your_queue_name"
+
+resource "aws_sqs_queue" "queue" {
+name = "queue_name"
 }
 
-resource "aws_lambda_function" "data_processor" {
-  function_name = "data_processor"
-  runtime       = "python3.8"
-  role          = aws_iam_role.lambda_role.arn
-  handler       = "lambda_function.lambda_handler"
-
-  # Upload the zipped lambda_function.py
-  filename = "lambda_function.zip"
-}
-
-resource "aws_lambda_event_source_mapping" "s3_event" {
-  event_source_arn = aws_s3_bucket.data_bucket.arn
-  function_name    = aws_lambda_function.data_processor.function_name
-  starting_position = "LATEST"
+resource "aws_s3_bucket_notification" "bucket_notification" {
+  bucket = aws_s3_bucket.bucket.id
+    lambda_function {
+      lambda_function_arn = aws_lambda_function.data_processing.arn
+      events              = ["s3:ObjectCreated:*"]
+      filter_prefix       = "input/"
+    }
+  
 }
 
 resource "aws_iam_role" "lambda_role" {
@@ -56,17 +67,57 @@ resource "aws_iam_role" "lambda_role" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "s3_lambda_access" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
-  role       = aws_iam_role.lambda_role.name
+resource "aws_dynamodb_table" "customer_data" {
+  name           = "customer_data"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "customer_reference"
+
+  attribute {
+    name = "customer_reference"
+    type = "S"
+  }
 }
 
-resource "aws_iam_role_policy_attachment" "dynamodb_lambda_access" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
-  role       = aws_iam_role.lambda_role.name
+resource "aws_lambda_function" "data_processing" {
+  function_name = "data_processing"
+  handler       = "lambda_function.lambda_handler"
+  role          = aws_iam_role.lambda_role.arn
+  runtime       = "python3.8"
+
+  filename         = "lambda_function.zip"
+  source_code_hash = filebase64sha256("lambda_function.zip")
 }
 
-resource "aws_iam_role_policy_attachment" "sqs_lambda_access" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
-  role       = aws_iam_role.lambda_role.name
+
+resource "aws_iam_role_policy" "lambda_role_policy" {
+  name = "lambda_role_policy"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "s3:GetObject",
+          "sqs:SendMessage",
+          "dynamodb:PutItem"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      {
+        Action = "lambda:InvokeFunction"
+        Effect = "Allow"
+        Resource = aws_lambda_function.data_processing.arn
+      }
+    ]
+  })
+}
+
+resource "aws_lambda_permission" "allow_bucket_invocation" {
+  statement_id  = "AllowS3BucketInvocation"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.data_processing.function_name
+  principal     = "s3.amazonaws.com"
+  source_arn    = aws_s3_bucket.bucket.arn
 }
