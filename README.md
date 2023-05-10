@@ -34,5 +34,5 @@ Lambda function will be triggered automatically upon file upload and process the
 ```
 
 Run Lambda function with:
-aws lambda invoke --function-name data_processing --payload file://s3_event.json output.txt
+`aws lambda invoke --function-name data_processing --payload file://s3_event.json output.txt`
 
