@@ -16,7 +16,7 @@ Lambda function will be triggered automatically upon file upload and process the
 
 - Given example data turned into .csv files for test purposes
 ```
-Terraform Resources: 
+#Used erraform Resources#: 
 - aws
 - terraform
 - "aws_s3_bucket" "data_bucket"
