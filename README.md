@@ -6,15 +6,21 @@
 This Terraform configuration creates an S3 bucket, a Lambda function, an SQS queue, a DynamoDB instance to write the data and the necessary IAM roles and policies for the Lambda function to access the S3 bucket and SQS queue.
 
 Before running Terraform, create a Lambda package with your Lambda function code:
-
-1. Create a ZIP file containing your `lambda_function.py` file.
-2. Update the `lambda-function.zip` in the Terraform configuration to match the name of your ZIP file.
+- Make sure there is a ZIP file containing your `lambda_function.py` file.
+- Make sure the `lambda-function.zip` in the Terraform configuration to match the name of your ZIP file.
 
 Then, run `terraform init` and `terraform apply` to create the resources.
 
 - With this setup, the data processing pipeline is ready, and you can test it by uploading CSV files to the S3 bucket. 
 - Given example data turned into .csv files for test purposes
-- After running `terraform apply`, run `copy_csvs_to_bucket.sh` to copy needed files to the bucket automatically. Please make sure AWS CLI is configured before running the script. 
+- Please make sure AWS CLI is configured before running the script.
+- Export following values before running `terraform apply`:
+```
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+```
+- After running `terraform apply`, run `copy_csvs_to_bucket.sh` to copy needed files to the bucket automatically.
+- To be able to run `terraform destroy` empty your bucket manually first from AWS Console.
 
 # Used Resources: 
 ```

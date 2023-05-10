@@ -3,11 +3,10 @@ terraform {
     bucket         = "terraform-tfstate-gt"
     key            = "terraform.tfstate"
     region         = "eu-central-1" # Replace with the AWS region where your bucket is located
-    encrypt        = true
+    # encrypt        = true
     # dynamodb_table = "terraform-lock" # Optional: if you want to enable state locking using DynamoDB
   }
 }
-
 
 provider "aws" {
   region = "eu-central-1"
@@ -17,24 +16,21 @@ resource "aws_s3_bucket" "bucket" {
   bucket = "gt-task-bucket-10-05-23"
 }
 
-resource "aws_s3_bucket_policy" "bucket_policy" {
-  bucket = aws_s3_bucket.bucket.id
+# resource "aws_s3_bucket_policy" "bucket_policy" {
+#   bucket = aws_s3_bucket.bucket.id
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "s3:GetObject"
-        Effect = "Allow"
-        Resource = "${aws_s3_bucket.bucket.arn}/*"
-        Principal = {
-          AWS = aws_iam_role.lambda_role.arn
-        }
-      }
-    ]
-  })
-}
-
+#   policy = jsonencode({
+#     "Version": "2012-10-17"
+#     "Statement": [
+#       {
+#         "Action": "s3:GetObject"
+#         "Effect": "Allow"
+#         "Resource": "*"
+#         "Principal": "*"
+#       }
+#     ]
+#   })
+# }
 
 resource "aws_sqs_queue" "queue" {
 name = "queue_name"
@@ -54,13 +50,13 @@ resource "aws_iam_role" "lambda_role" {
   name = "lambda_role"
 
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
+    "Version": "2012-10-17"
+    "Statement": [
       {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
+        "Action": "sts:AssumeRole"
+        "Effect": "Allow"
+        "Principal": {
+        "Service": "lambda.amazonaws.com"
         }
       }
     ]
@@ -88,7 +84,6 @@ resource "aws_lambda_function" "data_processing" {
   source_code_hash = filebase64sha256("lambda_function.zip")
 }
 
-
 resource "aws_iam_role_policy" "lambda_role_policy" {
   name = "lambda_role_policy"
   role = aws_iam_role.lambda_role.id
@@ -98,18 +93,36 @@ resource "aws_iam_role_policy" "lambda_role_policy" {
     Statement = [
       {
         Action = [
-          "s3:GetObject",
-          "sqs:SendMessage",
-          "dynamodb:PutItem"
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
         ]
         Effect   = "Allow"
-        Resource = "*"
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Action = [
+          "s3:GetObject",
+        ]
+        Effect   = "Allow"
+        Resource = "${aws_s3_bucket.bucket.arn}/*"
+      },
+      {
+        Action = [
+          "sqs:SendMessage",
+          "sqs:GetQueueUrl",
+        ]
+        Effect   = "Allow"
+        Resource = "aws_sqs_queue.queue.arn"
+      },
+      {
+        Action = [
+          "dynamodb:PutItem",
+        ]
+        Effect   = "Allow"
+        Resource = "aws_dynamodb_table.customer_data.arn"
       }
-      # {
-      #   Action = "lambda:InvokeFunction"
-      #   Effect = "Allow"
-      #   Resource = aws_lambda_function.data_processing.function_arn
-      # }
+      
     ]
   })
 }
@@ -120,4 +133,20 @@ resource "aws_lambda_permission" "allow_bucket_invocation" {
   function_name = aws_lambda_function.data_processing.function_name
   principal     = "s3.amazonaws.com"
   source_arn    = aws_s3_bucket.bucket.arn
+}
+
+resource "aws_s3_bucket_policy" "bucket_policy" {
+  bucket = aws_s3_bucket.bucket.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = "s3:*"
+        Effect   = "Allow"
+        Resource = "*"
+        Principal = "*"
+      }
+    ]
+  })
 }
