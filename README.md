@@ -1,6 +1,6 @@
 # GT-Assignment #
 
-![alt text](gt-assignment-infra.png)
+![alt text](gt-assignment-infra.jpg)
 
 ## Terraform Configuration ##
 This Terraform configuration creates an S3 bucket, a Lambda function, an SQS queue, a DynamoDB instance to write the data and the necessary IAM roles and policies for the Lambda function to access the S3 bucket and SQS queue.
